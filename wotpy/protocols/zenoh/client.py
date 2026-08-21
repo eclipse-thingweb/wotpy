@@ -279,7 +279,7 @@ class ZenohClient(BaseProtocolClient):
 
         return next((
             form.href for form in forms
-            if is_scheme_form(form, td.base, ZenohSchemes.ZENOH) and is_op_form(form)
+            if is_scheme_form(form, td.base, ZenohSchemes.list()) and is_op_form(form)
         ), None)
 
     @classmethod
@@ -287,14 +287,17 @@ class ZenohClient(BaseProtocolClient):
         """Take an Zenoh form href and returns
         the Zenoh router URL and the topic separately."""
 
-        modified_href = href.replace("tcp/", "")
-        parsed_href = parse.urlparse(modified_href)
+        parsed_href = parse.urlparse(href)
 
-        assert parsed_href.scheme and parsed_href.netloc and parsed_href.path
+        transport = parsed_href.scheme.split("+")[-1]
+        netloc = parsed_href.netloc
+        topic = parsed_href.path.strip("/")
+
+        assert transport and netloc and topic
 
         return {
-            "router_url": "tcp/{}".format(parsed_href.netloc),
-            "topic": parsed_href.path.lstrip("/").rstrip("/")
+            "router_url": "{}/{}".format(transport, netloc),
+            "topic": topic
         }
 
     @property
@@ -447,58 +450,43 @@ class ZenohClient(BaseProtocolClient):
             td, forms,
             op=InteractionVerbs.READ_PROPERTY)
 
-        href_obsv = self._pick_zenoh_href(
-            td, forms,
-            op=InteractionVerbs.OBSERVE_PROPERTY)
-
-        if href_read is None or href_obsv is None:
+        if href_read is None:
             raise FormNotFoundException()
 
         parsed_href_read = self._parse_href(href_read)
-        parsed_href_obsv = self._parse_href(href_obsv)
-
+        router_url = parsed_href_read["router_url"]
         topic_read = parsed_href_read["topic"]
-        topic_obsv = parsed_href_obsv["topic"]
 
-        router_read = parsed_href_read["router_url"]
-        router_obsv = parsed_href_obsv["router_url"]
+        config = build_zenoh_config(router_url)
+        get_timeout = timeout if timeout else self._msg_wait_timeout_secs
 
-        try:
-            await self._init_client(router_read)
-            router_obsv != router_read and (await self._init_client(router_obsv))
+        loop = asyncio.get_running_loop()
 
-            await self._subscribe(router_obsv, topic_obsv)
+        def do_get():
+            session = zenoh.open(config)
+            try:
+                return list(session.get(
+                    topic_read,
+                    zenoh.handlers.FifoChannel(1),
+                    timeout=get_timeout))
+            finally:
+                session.close()
 
-            read_time = time.time()
-            read_payload = json.dumps({"action": "read"}).encode()
+        self._logr.debug("Reading property via Zenoh get: {}".format(topic_read))
 
-            await self._publish(router_read, topic_read, read_payload)
+        replies = await loop.run_in_executor(None, do_get)
 
-            ini = time.time()
-
-            while True:
-                self._logr.debug(
-                    "Checking property update topic: {}".format(topic_obsv))
-
-                if timeout and (time.time() - ini) > timeout:
-                    self._logr.warning(
-                        "Timeout reading Property: {}".format(topic_obsv))
-                    raise ClientRequestTimeout
-
-                msg_match = self._next_match(
-                    router_obsv, topic_obsv,
-                    lambda item: item[2] >= read_time)
-
-                if not msg_match:
-                    await self._wait_on_message(router_obsv, topic_obsv)
-                    continue
-
-                msg_id, msg_data, msg_time = msg_match
-
-                return msg_data.get("value")
-        finally:
-            await self._disconnect_client(router_read, topic_read)
-            await self._disconnect_client(router_obsv, topic_obsv)
+        if not replies:
+            raise ClientRequestTimeout
+        
+        reply = replies[0]
+        if reply.ok is None:
+            raise RuntimeError("Zenoh property read: Invalid reply format")
+        elif not reply.ok:
+            err_text = reply.err.payload.to_string() if reply.err is not None else "Unknown error"
+            raise RuntimeError(f"Zenoh property read error: {err_text}")
+        
+        return json.loads(reply.ok.payload.to_string()).get("value")
 
     def _build_subscribe(self, router_url, topic, next_item_builder):
         """Builds the subscribe function that should be passed when

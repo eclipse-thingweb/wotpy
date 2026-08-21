@@ -23,13 +23,14 @@ Field           Description
 
 An example of an Zenoh form ``href``::
 
-    zenoh://my.zenoh.router:1883/my-servient/property/requests/benchmark-thing/currenttime
+    zenoh+tcp://my.zenoh.router:7447/my-servient/property/requests/benchmark-thing/currenttime
 
-* ``my.zenoh.router:1883`` is the router URL.
+* ``tcp`` is the transport of the underlying Zenoh locator (``tcp/my.zenoh.router:7447``).
+* ``my.zenoh.router:7447`` is the router address.
 * ``my-servient`` is the servient ID used as a namespace to avoid collisions between servients using the same router.
 * ``property/requests/benchmark-thing/currenttime`` is the topic where messages are exchanged for this specific interaction and verb.
 
-.. note:: The `zenoh` URL scheme is not standard but is used internally to select the appropriate protocols.
+.. note:: The `zenoh+<transport>` URL scheme is not standard but is used internally to select the appropriate protocols.
 
 
 Topics

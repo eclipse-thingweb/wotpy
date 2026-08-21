@@ -32,4 +32,7 @@ from wotpy.utils.enums import EnumListMixin
 class ZenohSchemes(EnumListMixin):
     """Enumeration of Zenoh schemes."""
 
-    ZENOH = "zenoh"
+    ZENOH_TCP = "zenoh+tcp"
+    ZENOH_UDP = "zenoh+udp"
+    ZENOH_TLS = "zenoh+tls"
+    ZENOH_QUIC = "zenoh+quic"
