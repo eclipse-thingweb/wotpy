@@ -179,20 +179,23 @@ class Servient:
                 Protocols.HTTP,
                 Protocols.COAP,
                 Protocols.WEBSOCKETS,
+                Protocols.MODBUS,
             ],
             InteractionTypes.ACTION: [
                 Protocols.HTTP,
                 Protocols.WEBSOCKETS,
                 Protocols.MQTT,
                 Protocols.ZENOH,
-                Protocols.COAP
+                Protocols.COAP,
+                Protocols.MODBUS
             ],
             InteractionTypes.EVENT: [
                 Protocols.WEBSOCKETS,
                 Protocols.MQTT,
                 Protocols.ZENOH,
                 Protocols.COAP,
-                Protocols.HTTP
+                Protocols.HTTP,
+                Protocols.MODBUS
             ]
         }
 
