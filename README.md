@@ -110,7 +110,7 @@ task: [test-broker] docker run -d -p 1883:1883 --name wotpy_test_broker eclipse-
 68bfef102faf3529427e5c7122f41d43490885c04f8a2d673a2c57b3afd68f72
 task: [docker-tests] echo "⚙️ Running tests for Python 3.10..."
 ⚙️ Running tests for Python 3.10...
-task: [docker-tests] /Users/agmangas/Documents/Projects/wotpy/pytest-docker.sh
+task: [docker-tests] PWD/wotpy/pytest-docker.sh
 Running python tests for version 3.10 with arguments "-v"
 Creating temporary container volume
 wotpy_tests_28b82c629b354b83a7fa22a9ed3d6dba

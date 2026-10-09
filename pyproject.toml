@@ -12,7 +12,7 @@ dynamic = ["version"]
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [
-  { name = "Andres Garcia Mangas", email = "andres.garcia@fundacionctic.org" }
+  { name = "Eclipse Thingweb", email = "thingweb-dev@eclipse.org" }
 ]
 maintainers = [
   { name = "Nikos Filinis", email = "nfilinis@netmode.ntua.gr" }
