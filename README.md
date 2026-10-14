@@ -145,6 +145,45 @@ An MQTT broker is needed as a dependency for the MQTT binding tests. The task wi
 
 ## Publishing New Versions
 
-You should use the `version.sh` file and not change any versions anywhere manually.
-Running `version.sh minor` will bump the minor version, push the tags and update the master branch and also trigger the release.
-Make sure to clear the `.venv` environment and reinstall the packages before publishing.
+Do not change version numbers manually. Always use the `version.sh` script to manage releases.
+
+Before running any release steps, ensure your working directory is clean, recreate your virtual environment and reinstall dependencies:
+
+```bash
+rm -rf .venv
+python -m venv .venv
+source .venv/bin/activate
+.venv/bin/pip install -U -e ".[dev]"
+```
+
+Publishing is a two-step process:
+
+### 1. Prepare the Release Branch
+
+Run `prepare` with the desired bump component (`major`, `minor`, or `patch`):
+
+```bash
+./version.sh prepare minor
+```
+
+This step will:
+- Check out and pull the latest `develop` branch from the `upstream` remote
+- Calculate the target version and create a new branch: `release/v<NEW_VERSION>`
+- Bump the version files without tagging
+- Push the release branch to the `origin` remote which is assumed to be a fork
+
+Open a Pull Request from `<origin>:release/v<NEW_VERSION>` into `<upstream>:develop` and ensure it gets reviewed and merged.
+
+### 2. Trigger the Release
+
+Once the Pull Request is merged into `develop`, run:
+
+```bash
+./version.sh release
+```
+
+This step will:
+- Pull the latest `develop` containing the merged version bump from `upstream`
+- Merge `develop` into `master` locally
+- Create an annotated Git tag (`v<VERSION>`) on `master`
+- Push both `master` and the release tag to the `upstream` repo, triggering the automated release workflow
