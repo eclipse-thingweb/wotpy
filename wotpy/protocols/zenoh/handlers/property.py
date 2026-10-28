@@ -44,7 +44,6 @@ class PropertyZenohHandler(BaseZenohHandler):
     KEY_ACTION = "action"
     KEY_VALUE = "value"
     KEY_ACK = "ack"
-    ACTION_READ = "read"
     ACTION_WRITE = "write"
     DEFAULT_CALLBACK_MS = 2000
     DEFAULT_JITTER = 0.2
@@ -57,6 +56,7 @@ class PropertyZenohHandler(BaseZenohHandler):
         self._callback_ms = callback_ms
         self._subs = {}
         self._periodic_refresh_subs = None
+        self._queryable = None
 
         self._interaction_subscriber = InteractionsSubscriber(
             interaction_type=InteractionTypes.PROPERTY,
@@ -105,7 +105,7 @@ class PropertyZenohHandler(BaseZenohHandler):
 
         action = parsed_msg.get(self.KEY_ACTION, False)
 
-        if not action or action not in [self.ACTION_WRITE, self.ACTION_READ]:
+        if not action or action != self.ACTION_WRITE:
             return
 
         topic_split = str(sample.key_expr).split("/")
@@ -128,27 +128,15 @@ class PropertyZenohHandler(BaseZenohHandler):
         except StopIteration:
             return
 
-        if action == self.ACTION_READ:
-            value = await exp_thing.properties[prop.name].read()
-            topic = self.build_property_updates_topic(exp_thing.thing, prop)
-            update_msg = self._build_update_message(topic, value)
-            await self.queue.put(update_msg)
-        elif action == self.ACTION_WRITE and self.KEY_VALUE in parsed_msg:
-            await exp_thing.handle_write_property(prop.name, parsed_msg[self.KEY_VALUE])
-            await self.publish_write_ack(sample)
+        await exp_thing.handle_write_property(prop.name, parsed_msg[self.KEY_VALUE])
+        await self.publish_write_ack(sample, parsed_msg)
 
-    async def publish_write_ack(self, sample):
-        """Takes a Property write request message and publishes the related write ACK message."""
+    async def publish_write_ack(self, sample, parsed_msg):
+        """Publishes the write ACK message for the given write request."""
 
-        try:
-            parsed_msg = json.loads(sample.payload.to_string())
-        except (JSONDecodeError, TypeError):
-            return
-
-        action = parsed_msg.get(self.KEY_ACTION, None)
         ack_code = parsed_msg.get(self.KEY_ACK, None)
 
-        if not action or not ack_code or action != self.ACTION_WRITE:
+        if not ack_code:
             return
 
         topic_ack = self.to_write_ack_topic(str(sample.key_expr))
@@ -172,6 +160,49 @@ class PropertyZenohHandler(BaseZenohHandler):
         self._interaction_subscriber.refresh()
         self._periodic_refresh_subs = asyncio.create_task(refresh_subs())
 
+        loop = asyncio.get_running_loop()
+        splits_expected_len = len(self.topic_wildcard_requests.split("/")) + 1
+
+        async def handle_read_query(query):
+            topic_split = str(query.key_expr).split("/")
+
+            if len(topic_split) != splits_expected_len:
+                query.reply_err(b"Unexpected topic format")
+                return
+
+            thing_url_name, prop_url_name = topic_split[-2], topic_split[-1]
+
+            try:
+                exp_thing = next(
+                    item for item in self.zenoh_server.exposed_things
+                    if item.url_name == thing_url_name)
+
+                prop = next(
+                    exp_thing.thing.properties[key] for key in exp_thing.thing.properties
+                    if exp_thing.thing.properties[key].url_name == prop_url_name)
+            except StopIteration:
+                query.reply_err(b"Property not found")
+                return
+
+            try:
+                value = await exp_thing.properties[prop.name].read()
+            except Exception as ex:
+                query.reply_err(str(ex).encode())
+                return
+
+            now_ms = int(time.time() * 1000)
+            payload = json.dumps({
+                self.KEY_VALUE: to_json_obj(value),
+                "timestamp": now_ms
+            }).encode()
+            query.reply(str(query.key_expr), payload)
+
+        def queryable_callback(query):
+            asyncio.run_coroutine_threadsafe(handle_read_query(query), loop)
+
+        self._queryable = self.zenoh_server._session.declare_queryable(
+            self.topic_wildcard_requests, queryable_callback)
+
         return None
 
     async def teardown(self):
@@ -180,6 +211,10 @@ class PropertyZenohHandler(BaseZenohHandler):
 
         self._periodic_refresh_subs.cancel()
         self._interaction_subscriber.dispose()
+
+        if self._queryable is not None:
+            self._queryable.undeclare()
+            self._queryable = None
 
         return None
 

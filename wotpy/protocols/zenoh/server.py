@@ -30,13 +30,13 @@ import asyncio
 import copy
 import json
 import logging
+import re
 
 import zenoh
 from slugify import slugify
 
 from wotpy.codecs.enums import MediaTypes
 from wotpy.protocols.enums import Protocols, InteractionVerbs
-from wotpy.protocols.zenoh.enums import ZenohSchemes
 from wotpy.protocols.zenoh.handlers.action import ActionZenohHandler
 from wotpy.protocols.zenoh.handlers.event import EventZenohHandler
 from wotpy.protocols.zenoh.handlers.ping import PingZenohHandler
@@ -52,12 +52,15 @@ class ZenohServer(BaseProtocolServer):
     """Zenoh binding server implementation."""
 
     DEFAULT_SERVIENT_ID = 'wotpy'
+    DEFAULT_TRANSPORT = 'tcp'
+    SCHEME_PREFIX = 'zenoh'
 
     def __init__(self, router_url, property_callback_ms=None,
                  event_callback_ms=None, servient_id=None):
         super().__init__(port=None)
-        self._scheme = ZenohSchemes.ZENOH
-        self._router_url = router_url if router_url.startswith("tcp/") else f"tcp/{router_url}"
+        self._transport, self._router_netloc = self._split_locator(router_url)
+        self._scheme = "{}+{}".format(self.SCHEME_PREFIX, self._transport)
+        self._router_url = "{}/{}".format(self._transport, self._router_netloc)
         self._server_lock = asyncio.Lock()
         self._lock_conn = asyncio.Lock()
         self._servient_id = servient_id
@@ -74,6 +77,15 @@ class ZenohServer(BaseProtocolServer):
             build_runner(EventZenohHandler(zenoh_server=self, callback_ms=event_callback_ms)),
             build_runner(ActionZenohHandler(zenoh_server=self)),
         ]
+
+    def _split_locator(self, router_url):
+        """Splits a Zenoh locator..."""
+        match = re.match(r"^(?P<transport>[a-z][a-z0-9-]*)/(?P<netloc>.+)$", router_url.strip())
+
+        if not match:
+            return self.DEFAULT_TRANSPORT, router_url.strip().rstrip("/")
+
+        return match.group("transport"), match.group("netloc").rstrip("/")
 
     async def _connect(self):
         """Zenoh connection helper function."""
@@ -143,7 +155,7 @@ class ZenohServer(BaseProtocolServer):
 
         href_rw = "{}://{}/{}/property/requests/{}/{}".format(
             self.scheme,
-            self._router_url.rstrip("/"),
+            self._router_netloc,
             self.servient_id,
             proprty.thing.url_name,
             proprty.url_name)
@@ -164,7 +176,7 @@ class ZenohServer(BaseProtocolServer):
 
         href_observe = "{}://{}/{}/property/updates/{}/{}".format(
             self.scheme,
-            self._router_url.rstrip("/"),
+            self._router_netloc,
             self.servient_id,
             proprty.thing.url_name,
             proprty.url_name)
@@ -183,7 +195,7 @@ class ZenohServer(BaseProtocolServer):
 
         href = "{}://{}/{}/action/invocation/{}/{}".format(
             self.scheme,
-            self._router_url.rstrip("/"),
+            self._router_netloc,
             self.servient_id,
             action.thing.url_name,
             action.url_name)
@@ -202,7 +214,7 @@ class ZenohServer(BaseProtocolServer):
 
         href = "{}://{}/{}/event/{}/{}".format(
             self.scheme,
-            self._router_url.rstrip("/"),
+            self._router_netloc,
             self.servient_id,
             event.thing.url_name,
             event.url_name)

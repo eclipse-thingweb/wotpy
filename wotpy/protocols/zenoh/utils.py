@@ -37,7 +37,7 @@ def build_zenoh_config(router_url):
     config = zenoh.Config()
 
     config.insert_json5("mode", json.dumps("client"))
-    router_url = router_url if router_url.startswith("tcp/") else f"tcp/{router_url}"
+    router_url = router_url if "/" in router_url else f"tcp/{router_url}"
     config.insert_json5("connect/endpoints", json.dumps([router_url]))
 
     return config
