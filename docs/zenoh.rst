@@ -30,6 +30,21 @@ An example of an Zenoh form ``href``::
 * ``my-servient`` is the servient ID used as a namespace to avoid collisions between servients using the same router.
 * ``property/requests/benchmark-thing/currenttime`` is the topic where messages are exchanged for this specific interaction and verb.
 
+The transport part of the scheme accepts any link protocol supported by the Zenoh
+router that is being used:
+
+====================  ===========
+Transport             Locator example
+====================  ===========
+``tcp``               ``zenoh+tcp://my.zenoh.router:7447``
+``udp``               ``zenoh+udp://my.zenoh.router:7447``
+``tls``               ``zenoh+tls://my.zenoh.router:7447``
+``quic``              ``zenoh+quic://my.zenoh.router:7447``
+====================  ===========
+
+.. note:: ``quic`` is an optional Zenoh build feature and is only usable if both the router
+          and the Zenoh runtime embedded in wotpy were built with it enabled.
+
 .. note:: The `zenoh+<transport>` URL scheme is not standard but is used internally to select the appropriate protocols.
 
 

@@ -30,6 +30,7 @@ Class that represents a WoT servient.
 
 import asyncio
 import functools
+import logging
 import re
 import socket
 
@@ -552,8 +553,25 @@ class Servient:
             await self.shutdown_hook()
             for server in self._servers.values():
                 await server.stop()
+            await self._close_clients()
             self._stop_catalogue()
             self._is_running = False
+
+    async def _close_clients(self):
+        """Closes the Protocol Binding clients that hold long-lived connections."""
+
+        for client in self._clients.values():
+            close = getattr(client, "close", None)
+
+            if close is None:
+                continue
+
+            try:
+                await close()
+            except Exception as ex:
+                logging.getLogger(__name__).warning(
+                    "Error closing client {}: {}".format(client.protocol, ex),
+                    exc_info=True)
 
     async def startup_hook(self):
         """Hook that is implemented by subclass."""
