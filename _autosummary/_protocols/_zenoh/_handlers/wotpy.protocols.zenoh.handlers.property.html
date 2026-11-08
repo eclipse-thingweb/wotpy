@@ -120,11 +120,6 @@
 <dd><p>Bases: <a class="reference internal" href="wotpy.protocols.zenoh.handlers.base.html#wotpy.protocols.zenoh.handlers.base.BaseZenohHandler" title="wotpy.protocols.zenoh.handlers.base.BaseZenohHandler"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseZenohHandler</span></code></a></p>
 <p>Zenoh handler for Property reads, writes and subscriptions to value updates.</p>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.ACTION_READ">
-<span class="sig-name descname"><span class="pre">ACTION_READ</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'read'</span></em><a class="headerlink" href="#wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.ACTION_READ" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.ACTION_WRITE">
 <span class="sig-name descname"><span class="pre">ACTION_WRITE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'write'</span></em><a class="headerlink" href="#wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.ACTION_WRITE" title="Link to this definition"></a></dt>
 <dd></dd></dl>
@@ -175,8 +170,8 @@ Called when the Zenoh runner starts.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.publish_write_ack">
-<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">publish_write_ack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.publish_write_ack" title="Link to this definition"></a></dt>
-<dd><p>Takes a Property write request message and publishes the related write ACK message.</p>
+<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">publish_write_ack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sample</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parsed_msg</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.publish_write_ack" title="Link to this definition"></a></dt>
+<dd><p>Publishes the write ACK message for the given write request.</p>
 </dd></dl>
 
 <dl class="py method">

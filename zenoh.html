@@ -125,17 +125,46 @@ messages exchanged with the Zenoh router when using the Zenoh Protocol Binding.<
 </tbody>
 </table>
 <p>An example of an Zenoh form <code class="docutils literal notranslate"><span class="pre">href</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">zenoh</span><span class="p">:</span><span class="o">//</span><span class="n">my</span><span class="o">.</span><span class="n">zenoh</span><span class="o">.</span><span class="n">router</span><span class="p">:</span><span class="mi">1883</span><span class="o">/</span><span class="n">my</span><span class="o">-</span><span class="n">servient</span><span class="o">/</span><span class="nb">property</span><span class="o">/</span><span class="n">requests</span><span class="o">/</span><span class="n">benchmark</span><span class="o">-</span><span class="n">thing</span><span class="o">/</span><span class="n">currenttime</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">zenoh</span><span class="o">+</span><span class="n">tcp</span><span class="p">:</span><span class="o">//</span><span class="n">my</span><span class="o">.</span><span class="n">zenoh</span><span class="o">.</span><span class="n">router</span><span class="p">:</span><span class="mi">7447</span><span class="o">/</span><span class="n">my</span><span class="o">-</span><span class="n">servient</span><span class="o">/</span><span class="nb">property</span><span class="o">/</span><span class="n">requests</span><span class="o">/</span><span class="n">benchmark</span><span class="o">-</span><span class="n">thing</span><span class="o">/</span><span class="n">currenttime</span>
 </pre></div>
 </div>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">my.zenoh.router:1883</span></code> is the router URL.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tcp</span></code> is the transport of the underlying Zenoh locator (<code class="docutils literal notranslate"><span class="pre">tcp/my.zenoh.router:7447</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my.zenoh.router:7447</span></code> is the router address.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">my-servient</span></code> is the servient ID used as a namespace to avoid collisions between servients using the same router.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">property/requests/benchmark-thing/currenttime</span></code> is the topic where messages are exchanged for this specific interaction and verb.</p></li>
 </ul>
+<p>The transport part of the scheme accepts any link protocol supported by the Zenoh
+router that is being used:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Transport</p></th>
+<th class="head"><p>Locator example</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tcp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">zenoh+tcp://my.zenoh.router:7447</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">udp</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">zenoh+udp://my.zenoh.router:7447</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tls</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">zenoh+tls://my.zenoh.router:7447</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">quic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">zenoh+quic://my.zenoh.router:7447</span></code></p></td>
+</tr>
+</tbody>
+</table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The <cite>zenoh</cite> URL scheme is not standard but is used internally to select the appropriate protocols.</p>
+<p><code class="docutils literal notranslate"><span class="pre">quic</span></code> is an optional Zenoh build feature and is only usable if both the router
+and the Zenoh runtime embedded in wotpy were built with it enabled.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <cite>zenoh+&lt;transport&gt;</cite> URL scheme is not standard but is used internally to select the appropriate protocols.</p>
 </div>
 </section>
 <section id="topics">

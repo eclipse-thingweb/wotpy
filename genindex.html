@@ -113,11 +113,7 @@
       <li><a href="_autosummary/_wot/wotpy.wot.enums.html#wotpy.wot.enums.DefaultThingEvent.ACTION_INVOCATION">ACTION_INVOCATION (wotpy.wot.enums.DefaultThingEvent attribute)</a>
 </li>
       <li><a href="_autosummary/_protocols/_mqtt/_handlers/wotpy.protocols.mqtt.handlers.property.html#wotpy.protocols.mqtt.handlers.property.PropertyMQTTHandler.ACTION_READ">ACTION_READ (wotpy.protocols.mqtt.handlers.property.PropertyMQTTHandler attribute)</a>
-
-      <ul>
-        <li><a href="_autosummary/_protocols/_zenoh/_handlers/wotpy.protocols.zenoh.handlers.property.html#wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler.ACTION_READ">(wotpy.protocols.zenoh.handlers.property.PropertyZenohHandler attribute)</a>
 </li>
-      </ul></li>
       <li><a href="_autosummary/_protocols/_http/wotpy.protocols.http.server.html#wotpy.protocols.http.server.HTTPServer.action_ttl">action_ttl (wotpy.protocols.http.server.HTTPServer property)</a>
 </li>
       <li><a href="_autosummary/_protocols/_mqtt/_handlers/wotpy.protocols.mqtt.handlers.property.html#wotpy.protocols.mqtt.handlers.property.PropertyMQTTHandler.ACTION_WRITE">ACTION_WRITE (wotpy.protocols.mqtt.handlers.property.PropertyMQTTHandler attribute)</a>
@@ -446,6 +442,8 @@
 </li>
       <li><a href="_autosummary/_wot/wotpy.wot.servient.html#wotpy.wot.servient.Servient.clients">clients (wotpy.wot.servient.Servient property)</a>
 </li>
+      <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.client.html#wotpy.protocols.zenoh.client.ZenohClient.close">close() (wotpy.protocols.zenoh.client.ZenohClient method)</a>
+</li>
       <li><a href="_autosummary/_protocols/_coap/wotpy.protocols.coap.enums.html#wotpy.protocols.coap.enums.CoAPSchemes.COAP">COAP (wotpy.protocols.coap.enums.CoAPSchemes attribute)</a>
 
       <ul>
@@ -640,6 +638,8 @@
         <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.runner.html#wotpy.protocols.zenoh.runner.ZenohHandlerRunner.DEFAULT_TIMEOUT_LOOPS_SECS">(wotpy.protocols.zenoh.runner.ZenohHandlerRunner attribute)</a>
 </li>
       </ul></li>
+      <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.server.html#wotpy.protocols.zenoh.server.ZenohServer.DEFAULT_TRANSPORT">DEFAULT_TRANSPORT (wotpy.protocols.zenoh.server.ZenohServer attribute)</a>
+</li>
       <li><a href="_autosummary/_wot/_dictionaries/wotpy.wot.dictionaries.base.html#wotpy.wot.dictionaries.base.WotBaseDict.Meta.defaults">defaults (wotpy.wot.dictionaries.base.WotBaseDict.Meta attribute)</a>
 
       <ul>
@@ -2019,6 +2019,8 @@
         <li><a href="_autosummary/_wot/_dictionaries/wotpy.wot.dictionaries.security.html#wotpy.wot.dictionaries.security.PSKSecuritySchemeDict.scheme">(wotpy.wot.dictionaries.security.PSKSecuritySchemeDict property)</a>
 </li>
       </ul></li>
+      <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.server.html#wotpy.protocols.zenoh.server.ZenohServer.SCHEME_PREFIX">SCHEME_PREFIX (wotpy.protocols.zenoh.server.ZenohServer attribute)</a>
+</li>
       <li><a href="_autosummary/_wot/_dictionaries/wotpy.wot.dictionaries.thing.html#wotpy.wot.dictionaries.thing.ThingFragment.security">security (wotpy.wot.dictionaries.thing.ThingFragment property)</a>
 
       <ul>
@@ -3237,15 +3239,19 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="_autosummary/_protocols/wotpy.protocols.enums.html#wotpy.protocols.enums.Protocols.ZENOH">ZENOH (wotpy.protocols.enums.Protocols attribute)</a>
-
-      <ul>
-        <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.enums.html#wotpy.protocols.zenoh.enums.ZenohSchemes.ZENOH">(wotpy.protocols.zenoh.enums.ZenohSchemes attribute)</a>
 </li>
-      </ul></li>
+      <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.enums.html#wotpy.protocols.zenoh.enums.ZenohSchemes.ZENOH_QUIC">ZENOH_QUIC (wotpy.protocols.zenoh.enums.ZenohSchemes attribute)</a>
+</li>
       <li><a href="_autosummary/_protocols/_zenoh/_handlers/wotpy.protocols.zenoh.handlers.base.html#wotpy.protocols.zenoh.handlers.base.BaseZenohHandler.zenoh_server">zenoh_server (wotpy.protocols.zenoh.handlers.base.BaseZenohHandler property)</a>
+</li>
+      <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.enums.html#wotpy.protocols.zenoh.enums.ZenohSchemes.ZENOH_TCP">ZENOH_TCP (wotpy.protocols.zenoh.enums.ZenohSchemes attribute)</a>
+</li>
+      <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.enums.html#wotpy.protocols.zenoh.enums.ZenohSchemes.ZENOH_TLS">ZENOH_TLS (wotpy.protocols.zenoh.enums.ZenohSchemes attribute)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.enums.html#wotpy.protocols.zenoh.enums.ZenohSchemes.ZENOH_UDP">ZENOH_UDP (wotpy.protocols.zenoh.enums.ZenohSchemes attribute)</a>
+</li>
       <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.client.html#wotpy.protocols.zenoh.client.ZenohClient">ZenohClient (class in wotpy.protocols.zenoh.client)</a>
 </li>
       <li><a href="_autosummary/_protocols/_zenoh/wotpy.protocols.zenoh.runner.html#wotpy.protocols.zenoh.runner.ZenohHandlerRunner">ZenohHandlerRunner (class in wotpy.protocols.zenoh.runner)</a>
