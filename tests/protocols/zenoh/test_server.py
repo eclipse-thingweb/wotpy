@@ -27,6 +27,7 @@ import json
 import time
 import uuid
 from asyncio import TimeoutError
+from urllib import parse
 import random
 
 import pytest
@@ -49,7 +50,7 @@ def build_topic(server, interaction, interaction_verb):
 
     forms = server.build_forms(None, interaction)
     form = next(item for item in forms if interaction_verb == item.op)
-    return "/".join(form.href.split("/")[4:])
+    return parse.urlparse(form.href).path.strip("/")
 
 
 def connect_router():
@@ -177,41 +178,33 @@ async def test_property_read(zenoh_server):
     prop_name = next(iter(exposed_thing.thing.properties.keys()))
     prop = exposed_thing.thing.properties[prop_name]
     topic_read = build_topic(zenoh_server, prop, InteractionVerbs.READ_PROPERTY)
-    topic_observe = build_topic(zenoh_server, prop, InteractionVerbs.OBSERVE_PROPERTY)
 
-    observe_timeout_secs = 1.0
+    read_timeout_secs = 5.0
 
     async def test_coroutine():
-        message_queue = asyncio.Queue()
-
         prop_value = await exposed_thing.properties[prop_name].read()
 
         zenoh_session = connect_router()
-        publisher = zenoh_session.declare_publisher(topic_read)
-        listener = await _create_listener(message_queue)
-        subscriber = zenoh_session.declare_subscriber(topic_observe, listener)
+        loop = asyncio.get_running_loop()
+
+        # The queryable replies on this same loop, so the blocking get must be offloaded
+        def do_get():
+            return list(zenoh_session.get(
+                topic_read,
+                zenoh.handlers.FifoChannel(1),
+                timeout=read_timeout_secs))
 
         try:
-            await asyncio.wait_for(message_queue.get(), timeout=observe_timeout_secs)
-            raise AssertionError('Unexpected message on topic {}'.format(topic_observe))
-        except TimeoutError:
-            pass
+            replies = await loop.run_in_executor(None, do_get)
+        finally:
+            zenoh_session.close()
 
-        async def read_value():
-            while True:
-                payload = json.dumps({"action": "read"}).encode()
-                publisher.put(payload)
-                await asyncio.sleep(0.05)
+        assert len(replies) > 0
 
-        task = asyncio.create_task(read_value())
+        reply = replies[0]
 
-        sample = await message_queue.get()
-
-        task.cancel()
-        subscriber.undeclare()
-        zenoh_session.close()
-
-        assert json.loads(sample.payload.to_string()).get("value") == prop_value
+        assert reply.ok is not None
+        assert json.loads(reply.ok.payload.to_string()).get("value") == prop_value
 
     await run_test_coroutine(test_coroutine)
 

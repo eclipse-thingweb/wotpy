@@ -78,23 +78,63 @@ class ZenohClient(BaseProtocolClient):
         self._deliver_stop_events = {}
         self._msg_conditions = {}
         self._session = {}
+        self._session_locks = {}
         self._subscribers = {}
         self._messages = {}
         self._topics = {}
         self._logr = logging.getLogger(__name__)
 
+    def _session_lock(self, router_url):
+        """Returns the lock that serializes session creation for the given router URL."""
+
+        if router_url not in self._session_locks:
+            self._session_locks[router_url] = asyncio.Lock()
+
+        return self._session_locks[router_url]
+
     async def _init_client(self, router_url):
-        """Initializes and connects a client to the given router URL."""
+        """Opens the shared session for the given router URL if it is not open yet.
+        Sessions are kept open and reused for the entire lifetime of this client."""
 
         if router_url in self._session:
-            return
+            return self._session[router_url]
 
-        config = build_zenoh_config(router_url)
+        async with self._session_lock(router_url):
+            if router_url in self._session:
+                return self._session[router_url]
 
-        self._logr.debug("Connecting Zenoh client to {} with config: {}".format(
-            router_url, pprint.pformat(config)))
+            config = build_zenoh_config(router_url)
 
-        self._session[router_url] = zenoh.open(config)
+            self._logr.debug("Connecting Zenoh client to {} with config: {}".format(
+                router_url, pprint.pformat(config)))
+
+            loop = asyncio.get_running_loop()
+
+            # zenoh.open performs a blocking handshake and must not run on the loop
+            self._session[router_url] = await loop.run_in_executor(
+                None, lambda: zenoh.open(config))
+
+            return self._session[router_url]
+
+    async def close(self):
+        """Closes all the Zenoh sessions held by this client."""
+
+        loop = asyncio.get_running_loop()
+
+        for router_url in list(self._session.keys()):
+            session = self._session.pop(router_url, None)
+
+            if session is None:
+                continue
+
+            try:
+                self._logr.debug(
+                    "Disconnecting Zenoh client: {}".format(router_url))
+                await loop.run_in_executor(None, session.close)
+            except Exception as ex:
+                self._logr.warning(
+                    "Error disconnecting: {}".format(ex),
+                    exc_info=True)
 
     async def _new_message(self, router_url, msg, topic):
         """Adds the message to the internal queue and notifies all topic listeners."""
@@ -155,16 +195,7 @@ class ZenohClient(BaseProtocolClient):
         if self._subscribers[router_url]:
             return
 
-        try:
-            self._logr.debug(
-                "Disconnecting Zenoh client: {}".format(router_url))
-            self._session[router_url].close()
-        except Exception as ex:
-            self._logr.warning(
-                "Error disconnecting: {}".format(ex),
-                exc_info=True)
-
-        self._session.pop(router_url, None)
+        # The session itself is left open for reuse and closed on close()
         self._subscribers.pop(router_url, None)
         self._messages.pop(router_url, None)
         self._msg_conditions.pop(router_url, None)
@@ -279,7 +310,7 @@ class ZenohClient(BaseProtocolClient):
 
         return next((
             form.href for form in forms
-            if is_scheme_form(form, td.base, ZenohSchemes.ZENOH) and is_op_form(form)
+            if is_scheme_form(form, td.base, ZenohSchemes.list()) and is_op_form(form)
         ), None)
 
     @classmethod
@@ -287,14 +318,17 @@ class ZenohClient(BaseProtocolClient):
         """Take an Zenoh form href and returns
         the Zenoh router URL and the topic separately."""
 
-        modified_href = href.replace("tcp/", "")
-        parsed_href = parse.urlparse(modified_href)
+        parsed_href = parse.urlparse(href)
 
-        assert parsed_href.scheme and parsed_href.netloc and parsed_href.path
+        transport = parsed_href.scheme.split("+")[-1]
+        netloc = parsed_href.netloc
+        topic = parsed_href.path.strip("/")
+
+        assert transport and netloc and topic
 
         return {
-            "router_url": "tcp/{}".format(parsed_href.netloc),
-            "topic": parsed_href.path.lstrip("/").rstrip("/")
+            "router_url": "{}/{}".format(transport, netloc),
+            "topic": topic
         }
 
     @property
@@ -447,58 +481,40 @@ class ZenohClient(BaseProtocolClient):
             td, forms,
             op=InteractionVerbs.READ_PROPERTY)
 
-        href_obsv = self._pick_zenoh_href(
-            td, forms,
-            op=InteractionVerbs.OBSERVE_PROPERTY)
-
-        if href_read is None or href_obsv is None:
+        if href_read is None:
             raise FormNotFoundException()
 
         parsed_href_read = self._parse_href(href_read)
-        parsed_href_obsv = self._parse_href(href_obsv)
-
+        router_url = parsed_href_read["router_url"]
         topic_read = parsed_href_read["topic"]
-        topic_obsv = parsed_href_obsv["topic"]
 
-        router_read = parsed_href_read["router_url"]
-        router_obsv = parsed_href_obsv["router_url"]
+        get_timeout = timeout if timeout else self._msg_wait_timeout_secs
 
-        try:
-            await self._init_client(router_read)
-            router_obsv != router_read and (await self._init_client(router_obsv))
+        session = await self._init_client(router_url)
 
-            await self._subscribe(router_obsv, topic_obsv)
+        loop = asyncio.get_running_loop()
 
-            read_time = time.time()
-            read_payload = json.dumps({"action": "read"}).encode()
+        def do_get():
+            return list(session.get(
+                topic_read,
+                zenoh.handlers.FifoChannel(1),
+                timeout=get_timeout))
 
-            await self._publish(router_read, topic_read, read_payload)
+        self._logr.debug("Reading property via Zenoh get: {}".format(topic_read))
 
-            ini = time.time()
+        replies = await loop.run_in_executor(None, do_get)
 
-            while True:
-                self._logr.debug(
-                    "Checking property update topic: {}".format(topic_obsv))
-
-                if timeout and (time.time() - ini) > timeout:
-                    self._logr.warning(
-                        "Timeout reading Property: {}".format(topic_obsv))
-                    raise ClientRequestTimeout
-
-                msg_match = self._next_match(
-                    router_obsv, topic_obsv,
-                    lambda item: item[2] >= read_time)
-
-                if not msg_match:
-                    await self._wait_on_message(router_obsv, topic_obsv)
-                    continue
-
-                msg_id, msg_data, msg_time = msg_match
-
-                return msg_data.get("value")
-        finally:
-            await self._disconnect_client(router_read, topic_read)
-            await self._disconnect_client(router_obsv, topic_obsv)
+        if not replies:
+            raise ClientRequestTimeout
+        
+        reply = replies[0]
+        if reply.ok is None:
+            raise RuntimeError("Zenoh property read: Invalid reply format")
+        elif not reply.ok:
+            err_text = reply.err.payload.to_string() if reply.err is not None else "Unknown error"
+            raise RuntimeError(f"Zenoh property read error: {err_text}")
+        
+        return json.loads(reply.ok.payload.to_string()).get("value")
 
     def _build_subscribe(self, router_url, topic, next_item_builder):
         """Builds the subscribe function that should be passed when
@@ -527,24 +543,21 @@ class ZenohClient(BaseProtocolClient):
                     coro = deliver_message(sample, observer)
                     asyncio.run_coroutine_threadsafe(coro, loop)
 
-                config = build_zenoh_config(router_url)
-                state["session"] = zenoh.open(config)
+                session = await self._init_client(router_url)
 
-                self._logr.debug("Subscribing on <{}> to {} with config: {}".format(
-                    router_url, topic, config))
-                state["subscriber"] = state["session"].declare_subscriber(topic, listener)
+                self._logr.debug("Subscribing on <{}> to {}".format(router_url, topic))
+                state["subscriber"] = session.declare_subscriber(topic, listener)
 
                 # Infinite loop that sleeps to keep the Zenoh subscription alive
                 while True:
                     await asyncio.sleep(5000)
 
             def unsubscribe():
-                """Disconnects from the Zenoh router and stops the message delivering loop."""
+                """Undeclares the subscriber and stops the message delivering loop."""
 
                 async def disconnect():
                     try:
                         state["subscriber"].undeclare()
-                        state["session"].close()
                     except Exception as ex:
                         self._logr.warning(
                             "Subscription disconnection error: {}".format(ex))
