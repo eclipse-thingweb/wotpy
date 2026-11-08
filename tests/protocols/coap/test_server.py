@@ -3,6 +3,7 @@
 
 # Copyright (c) 2018 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -50,6 +51,15 @@ def _get_property_observe_href(exp_thing, prop_name, server):
     prop = exp_thing.thing.properties[prop_name]
     prop_forms = server.build_forms("127.0.0.1", prop)
     return next(item.href for item in prop_forms if InteractionVerbs.OBSERVE_PROPERTY == item.op)
+
+
+def _get_all_properties_href(exp_thing, server):
+    """Helper function to retrieve the all-properties href."""
+
+    forms = server.build_top_level_forms("127.0.0.1", exp_thing.thing)
+    return next(
+        item.href for item in forms if InteractionVerbs.READ_ALL_PROPERTIES in item.op
+    )
 
 
 def _get_action_href(exp_thing, action_name, server):
@@ -117,6 +127,112 @@ async def test_start_stop():
             await coap_server.start()
 
         assert await ping()
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_all_properties_read(coap_server):
+    """All properties exposed in a CoAP server can be read with a GET request."""
+
+    exposed_thing = next(coap_server.exposed_things)
+    values = {
+        name: Faker().pyint() for name in exposed_thing.thing.properties.keys()
+    }
+    href = _get_all_properties_href(exposed_thing, coap_server)
+
+    async def test_coroutine():
+        for name, value in values.items():
+            await exposed_thing.properties[name].write(value)
+
+        coap_client = await aiocoap.Context.create_client_context()
+        response = await coap_client.request(
+            aiocoap.Message(code=aiocoap.Code.GET, uri=href)
+        ).response
+
+        assert response.code.is_successful()
+        assert json.loads(response.payload) == values
+        await coap_client.shutdown()
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_multiple_properties_read(coap_server):
+    """A CoAP server can return only the requested properties."""
+
+    exposed_thing = next(coap_server.exposed_things)
+    names = list(exposed_thing.thing.properties)[:2]
+    href = "{}&properties={}".format(
+        _get_all_properties_href(exposed_thing, coap_server), ",".join(names)
+    )
+
+    async def test_coroutine():
+        coap_client = await aiocoap.Context.create_client_context()
+        response = await coap_client.request(
+            aiocoap.Message(code=aiocoap.Code.GET, uri=href)
+        ).response
+
+        assert response.code.is_successful()
+        assert json.loads(response.payload) == {
+            name: await exposed_thing.properties[name].read() for name in names
+        }
+        await coap_client.shutdown()
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_all_properties_write(coap_server):
+    """All writable properties exposed in a CoAP server can be updated."""
+
+    exposed_thing = next(coap_server.exposed_things)
+    values = {
+        name: Faker().pyint() for name in exposed_thing.thing.properties.keys()
+    }
+    href = _get_all_properties_href(exposed_thing, coap_server)
+
+    async def test_coroutine():
+        coap_client = await aiocoap.Context.create_client_context()
+        response = await coap_client.request(aiocoap.Message(
+            code=aiocoap.Code.PUT,
+            payload=json.dumps(values).encode("utf-8"),
+            uri=href,
+        )).response
+
+        assert response.code.is_successful()
+        assert await exposed_thing.read_all_properties() == values
+        await coap_client.shutdown()
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_multiple_properties_write(coap_server):
+    """A CoAP server can update only the supplied properties."""
+
+    exposed_thing = next(coap_server.exposed_things)
+    names = list(exposed_thing.thing.properties)[:2]
+    initial_values = await exposed_thing.read_all_properties()
+    updated_values = {
+        name: "{} updated".format(initial_values[name]) for name in names
+    }
+    href = _get_all_properties_href(exposed_thing, coap_server)
+
+    async def test_coroutine():
+        coap_client = await aiocoap.Context.create_client_context()
+        response = await coap_client.request(aiocoap.Message(
+            code=aiocoap.Code.PUT,
+            payload=json.dumps(updated_values).encode("utf-8"),
+            uri=href,
+        )).response
+
+        assert response.code.is_successful()
+        assert await exposed_thing.read_all_properties() == {
+            **initial_values,
+            **updated_values,
+        }
+        await coap_client.shutdown()
 
     await run_test_coroutine(test_coroutine)
 

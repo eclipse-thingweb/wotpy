@@ -105,6 +105,11 @@ class WebsocketServer(BaseProtocolServer):
             )
         ]
 
+    def build_top_level_forms(self, hostname, thing):
+        """Builds and returns a list with all top-level Forms."""
+
+        return []
+
     def build_base_url(self, hostname, thing):
         """Returns the base URL for the given Thing in the context of this server."""
 

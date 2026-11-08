@@ -32,7 +32,7 @@ import asyncio
 import json
 import logging
 import time
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 import aiocoap
 import reactivex
@@ -59,8 +59,8 @@ class CoAPClient(BaseProtocolClient):
         super().__init__()
 
     @classmethod
-    def _pick_coap_href(cls, td, forms, op=None):
-        """Picks the most appropriate CoAP form href from the given list of forms."""
+    def _pick_coap_form(cls, td, forms, op=None):
+        """Picks the most appropriate CoAP form from the given list of forms."""
 
         def is_op_form(form):
             try:
@@ -68,17 +68,24 @@ class CoAPClient(BaseProtocolClient):
             except TypeError:
                 return False
 
-        def find_href(scheme):
+        def find_form(scheme):
             try:
                 return next(
-                    form.href for form in forms
+                    form for form in forms
                     if is_scheme_form(form, td.base, scheme) and is_op_form(form))
             except StopIteration:
                 return None
 
-        form_coaps = find_href(CoAPSchemes.COAPS)
+        form_coaps = find_form(CoAPSchemes.COAPS)
 
-        return form_coaps if form_coaps is not None else find_href(CoAPSchemes.COAP)
+        return form_coaps if form_coaps is not None else find_form(CoAPSchemes.COAP)
+
+    @classmethod
+    def _pick_coap_href(cls, td, forms, op=None):
+        """Picks the most appropriate CoAP form href from the given list of forms."""
+
+        form = cls._pick_coap_form(td, forms, op=op)
+        return form.href if form is not None else None
 
     @classmethod
     def _assert_success(cls, res):
@@ -295,6 +302,96 @@ class CoAPClient(BaseProtocolClient):
             return prop_value
         finally:
             await coap_client.shutdown()
+
+    async def read_multiple_properties(self, td, property_names, timeout=None, options=None, form=None):
+        """Reads a collection of properties using a collection form."""
+
+        href = (
+            form.href if form is not None else self._pick_coap_href(
+                td, td.forms, op=InteractionVerbs.READ_MULTIPLE_PROPERTIES
+            )
+        )
+        if href is None:
+            raise FormNotFoundException()
+        options = options or {}
+        parts = urlsplit(href)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query.update(options.get("uri_variables", options.get("uriVariables", {})))
+        query["properties"] = ",".join(property_names)
+        href = urlunsplit((parts.scheme, parts.netloc, parts.path,
+                           urlencode(query), parts.fragment))
+        coap_client = await aiocoap.Context.create_client_context()
+        if self._credentials:
+            with open(self._credentials, "rb") as file:
+                coap_client.client_credentials.load_from_dict(json.load(file))
+        try:
+            request = coap_client.request(
+                await self.sign_request(aiocoap.Message(code=aiocoap.Code.GET, uri=href))
+            )
+            try:
+                response = await asyncio.wait_for(request.response, timeout=timeout)
+            except asyncio.TimeoutError:
+                raise ClientRequestTimeout
+            self._assert_success(response)
+            value = json.loads(response.payload)
+            if not isinstance(value, dict):
+                raise ValueError("Collection response must be a JSON object")
+            return value
+        finally:
+            await coap_client.shutdown()
+
+    async def read_all_properties(self, td, timeout=None, options=None, form=None):
+        """Reads all readable properties using an all-properties form."""
+
+        form = form or self._pick_coap_form(
+            td, td.forms, op=InteractionVerbs.READ_ALL_PROPERTIES
+        )
+        if form is None:
+            raise FormNotFoundException()
+        property_names = [
+            name for name, prop in td.properties.items() if not prop.write_only
+        ]
+        return await self.read_multiple_properties(
+            td, property_names, timeout=timeout, options=options, form=form
+        )
+
+    async def write_multiple_properties(self, td, values, timeout=None, options=None, form=None):
+        """Writes a collection of properties using a collection form."""
+
+        form = form or self._pick_coap_form(
+            td, td.forms, op=InteractionVerbs.WRITE_MULTIPLE_PROPERTIES
+        )
+        if form is None:
+            raise FormNotFoundException()
+        coap_client = await aiocoap.Context.create_client_context()
+        if self._credentials:
+            with open(self._credentials, "rb") as file:
+                coap_client.client_credentials.load_from_dict(json.load(file))
+        try:
+            request = coap_client.request(await self.sign_request(aiocoap.Message(
+                code=aiocoap.Code.PUT,
+                payload=json.dumps(values).encode("utf-8"),
+                uri=form.href,
+            )))
+            try:
+                response = await asyncio.wait_for(request.response, timeout=timeout)
+            except asyncio.TimeoutError:
+                raise ClientRequestTimeout
+            self._assert_success(response)
+        finally:
+            await coap_client.shutdown()
+
+    async def write_all_properties(self, td, values, timeout=None, options=None, form=None):
+        """Writes all writable properties using an all-properties form."""
+
+        form = form or self._pick_coap_form(
+            td, td.forms, op=InteractionVerbs.WRITE_ALL_PROPERTIES
+        )
+        if form is None:
+            raise FormNotFoundException()
+        return await self.write_multiple_properties(
+            td, values, timeout=timeout, options=options, form=form
+        )
 
     def on_property_change(self, td, name):
         """Subscribes to property changes on a remote Thing.

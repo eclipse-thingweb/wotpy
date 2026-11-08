@@ -3,6 +3,7 @@
 
 # Copyright (c) 2018 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -39,6 +40,7 @@ from wotpy.protocols.http.enums import HTTPSchemes
 from wotpy.protocols.http.handlers.action import ActionInvokeHandler
 from wotpy.protocols.http.handlers.event import EventObserverHandler
 from wotpy.protocols.http.handlers.property import PropertyObserverHandler, PropertyReadWriteHandler
+from wotpy.protocols.http.handlers.properties import AllPropertiesReadWriteHandler
 from wotpy.protocols.server import BaseProtocolServer
 from wotpy.wot.enums import InteractionTypes, SecuritySchemeType
 from wotpy.wot.form import Form
@@ -136,6 +138,11 @@ class HTTPServer(BaseProtocolServer):
                     {"http_server": self}
                 ),
                 (
+                    r"/(?P<thing_name>[^\/]+)/properties",
+                    AllPropertiesReadWriteHandler,
+                    {"http_server": self}
+                ),
+                (
                     r"/(?P<thing_name>[^\/]+)/action/(?P<name>[^\/]+)",
                     ActionInvokeHandler,
                     {"http_server": self}
@@ -159,13 +166,25 @@ class HTTPServer(BaseProtocolServer):
             proprty.url_name
         )
 
-        form_read_write = Form(
-            interaction=proprty,
-            protocol=self.protocol,
-            href=href_read_write,
-            content_type=MediaTypes.JSON,
-            op=[InteractionVerbs.READ_PROPERTY, InteractionVerbs.WRITE_PROPERTY]
-        )
+        forms = []
+        if not proprty.data_schema.write_only:
+            forms.append(Form(
+                interaction=proprty,
+                protocol=self.protocol,
+                href=href_read_write,
+                content_type=MediaTypes.JSON,
+                op=InteractionVerbs.READ_PROPERTY
+            ))
+        if not proprty.data_schema.read_only:
+            forms.append(Form(
+                interaction=proprty,
+                protocol=self.protocol,
+                href=href_read_write,
+                content_type=MediaTypes.JSON,
+                op=InteractionVerbs.WRITE_PROPERTY
+            ))
+
+        form_read_write = forms
 
         href_observe = "{}/subscription".format(href_read_write)
 
@@ -177,7 +196,7 @@ class HTTPServer(BaseProtocolServer):
             op=[InteractionVerbs.OBSERVE_PROPERTY]
         )
 
-        return [form_read_write, form_observe]
+        return form_read_write + [form_observe]
 
     def _build_forms_action(self, action, hostname):
         """Builds and returns the HTTP Form instances for the given Action interaction."""
@@ -235,6 +254,38 @@ class HTTPServer(BaseProtocolServer):
             raise ValueError("Unsupported interaction")
 
         return intrct_type_map[interaction.interaction_type](interaction, hostname)
+
+    def build_top_level_forms(self, hostname, thing):
+        """Builds and returns a list with all top-level Forms
+        that are linked to this server for all exposed Things."""
+
+        href_all_properties = "{}://{}:{}/{}/properties".format(
+            self.scheme, hostname.rstrip("/").lstrip("/"), self.form_port, thing.url_name)
+
+        readable = any(not prop.data_schema.write_only for prop in thing.properties.values())
+        writable = any(not prop.data_schema.read_only for prop in thing.properties.values())
+        operations = []
+        if readable:
+            operations.extend([
+                InteractionVerbs.READ_ALL_PROPERTIES,
+                InteractionVerbs.READ_MULTIPLE_PROPERTIES
+            ])
+        if writable:
+            operations.extend([
+                InteractionVerbs.WRITE_ALL_PROPERTIES,
+                InteractionVerbs.WRITE_MULTIPLE_PROPERTIES
+            ])
+        if not operations:
+            return []
+
+        form_all_properties = Form(
+            interaction=None,
+            protocol=self.protocol,
+            href=href_all_properties,
+            content_type=MediaTypes.JSON,
+            op=operations)
+
+        return [form_all_properties]
 
     def build_base_url(self, hostname, thing):
         """Returns the base URL for the given Thing in the context of this server."""

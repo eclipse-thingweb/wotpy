@@ -3,6 +3,7 @@
 
 # Copyright (c) 2017 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -255,6 +256,62 @@ class ExposedThing:
             value = await self._default_retrieve_property_handler(name)
 
         return value
+
+    async def read_all_properties(self):
+        """Reads all properties of the Thing and returns a dictionary of property names and values."""
+
+        return await self.handle_read_all_properties()
+
+    async def handle_read_all_properties(self):
+        """Reads every property that is exposed for external reading."""
+
+        names = [
+            name for name, prop in self.thing.properties.items()
+            if not prop.data_schema.write_only
+        ]
+        return await self.handle_read_multiple_properties(names)
+
+    async def handle_read_multiple_properties(self, property_names):
+        """Reads a validated collection of externally readable properties."""
+
+        if not isinstance(property_names, (list, tuple)):
+            raise TypeError("Property names must be a list")
+
+        names = list(property_names)
+        if len(set(names)) != len(names):
+            raise ValueError("Property names must be unique")
+
+        properties = {}
+        for name in names:
+            prop = self.thing.properties.get(name)
+            if prop is None:
+                raise KeyError("Unknown property: {}".format(name))
+            if prop.data_schema.write_only:
+                raise PermissionError("Property is write-only: {}".format(name))
+            properties[name] = await self.read_property(name)
+        return properties
+
+    async def handle_write_all_properties(self, values):
+        """Updates all properties using values supplied by an external request."""
+
+        if not isinstance(values, dict):
+            raise TypeError("Property values must be a dictionary")
+
+        names = [
+            name for name, prop in self.thing.properties.items()
+            if prop.writable
+        ]
+        if set(values) != set(names):
+            raise ValueError("All writable property values are required")
+        await self.handle_write_multiple_properties(values)
+
+    async def handle_write_multiple_properties(self, values):
+        """Updates a validated collection of externally writable properties."""
+
+        if not isinstance(values, dict):
+            raise TypeError("Property values must be a dictionary")
+        for name, value in values.items():
+            await self.handle_write_property(name, value)
 
     async def handle_write_property(self, name, value):
         """Function that gets called from protocol servers to handle external write

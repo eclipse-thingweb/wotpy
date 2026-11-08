@@ -90,6 +90,15 @@ def _get_event_observe_href(exp_thing, event_name, server):
     )
 
 
+def _get_all_properties_href(exp_thing, server):
+    """Helper function to retrieve the all-properties href."""
+
+    forms = server.build_top_level_forms("localhost", exp_thing.thing)
+    return next(
+        item.href for item in forms if InteractionVerbs.READ_ALL_PROPERTIES in item.op
+    )
+
+
 @pytest.mark.asyncio
 async def test_property_get(http_server):
     """Properties exposed in an HTTP server can be read with an HTTP GET request."""
@@ -106,6 +115,106 @@ async def test_property_get(http_server):
         response = await http_client.fetch(http_request)
 
         assert json.loads(response.body) == prop_value
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_all_properties_get(http_server):
+    """All properties exposed in an HTTP server can be read with a GET request."""
+
+    exposed_thing = next(http_server.exposed_things)
+    values = {
+        name: Faker().pyint() for name in exposed_thing.thing.properties.keys()
+    }
+    href = _get_all_properties_href(exposed_thing, http_server)
+
+    async def test_coroutine():
+        for name, value in values.items():
+            await exposed_thing.properties[name].write(value)
+
+        http_client = tornado.httpclient.AsyncHTTPClient()
+        response = await http_client.fetch(
+            tornado.httpclient.HTTPRequest(href, method="GET")
+        )
+
+        assert json.loads(response.body) == values
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_multiple_properties_get(http_server):
+    """An HTTP server can return only the requested properties."""
+
+    exposed_thing = next(http_server.exposed_things)
+    names = list(exposed_thing.thing.properties)[:2]
+    href = "{}?properties={}".format(
+        _get_all_properties_href(exposed_thing, http_server), ",".join(names)
+    )
+
+    async def test_coroutine():
+        response = await tornado.httpclient.AsyncHTTPClient().fetch(href)
+
+        assert json.loads(response.body) == {
+            name: await exposed_thing.properties[name].read() for name in names
+        }
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_all_properties_put(http_server):
+    """All writable properties exposed in an HTTP server can be updated."""
+
+    exposed_thing = next(http_server.exposed_things)
+    values = {
+        name: Faker().pyint() for name in exposed_thing.thing.properties.keys()
+    }
+    href = _get_all_properties_href(exposed_thing, http_server)
+
+    async def test_coroutine():
+        http_client = tornado.httpclient.AsyncHTTPClient()
+        response = await http_client.fetch(tornado.httpclient.HTTPRequest(
+            href,
+            method="PUT",
+            body=json.dumps(values),
+            headers=JSON_HEADERS,
+        ))
+
+        assert response.rethrow() is None
+        assert await exposed_thing.read_all_properties() == values
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_multiple_properties_put(http_server):
+    """An HTTP server can update only the supplied properties."""
+
+    exposed_thing = next(http_server.exposed_things)
+    names = list(exposed_thing.thing.properties)[:2]
+    initial_values = await exposed_thing.read_all_properties()
+    updated_values = {
+        name: "{} updated".format(initial_values[name]) for name in names
+    }
+    href = _get_all_properties_href(exposed_thing, http_server)
+
+    async def test_coroutine():
+        response = await tornado.httpclient.AsyncHTTPClient().fetch(
+            tornado.httpclient.HTTPRequest(
+                href,
+                method="PUT",
+                body=json.dumps(updated_values),
+                headers=JSON_HEADERS,
+            )
+        )
+
+        assert response.rethrow() is None
+        assert await exposed_thing.read_all_properties() == {
+            **initial_values,
+            **updated_values,
+        }
 
     await run_test_coroutine(test_coroutine)
 
