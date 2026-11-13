@@ -158,19 +158,19 @@ class Thing:
     def id(self):
         """Thing ID."""
 
-        return self.thing_fragment.id
+        return self._thing_fragment.id
 
     @property
     def title(self):
         """Thing title."""
 
-        return self.thing_fragment.title
+        return self._thing_fragment.title
 
     @property
     def url_name(self):
         """Returns the URL-safe name of this Thing."""
 
-        return slugify(self.title)
+        return slugify(self._thing_fragment.title)
 
     @property
     def security(self):
