@@ -3,6 +3,7 @@
 
 # Copyright (c) 2018 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -29,7 +30,11 @@ from tests.protocols.helpers import \
     client_test_on_property_change, \
     client_test_on_event, \
     client_test_read_property, \
+    client_test_read_all_properties, \
+    client_test_read_multiple_properties, \
     client_test_write_property, \
+    client_test_write_all_properties, \
+    client_test_write_multiple_properties, \
     client_test_invoke_action, \
     client_test_invoke_action_error, \
     client_test_on_property_change_error
@@ -44,10 +49,38 @@ async def test_read_property(http_servient):
 
 
 @pytest.mark.asyncio
+async def test_read_all_properties(http_servient):
+    """The HTTP client can read all properties."""
+
+    await client_test_read_all_properties(http_servient, HTTPClient)
+
+
+@pytest.mark.asyncio
+async def test_read_multiple_properties(http_servient):
+    """The HTTP client can read selected properties."""
+
+    await client_test_read_multiple_properties(http_servient, HTTPClient)
+
+
+@pytest.mark.asyncio
 async def test_write_property(http_servient):
     """The HTTP client can write properties."""
 
     await client_test_write_property(http_servient, HTTPClient)
+
+
+@pytest.mark.asyncio
+async def test_write_all_properties(http_servient):
+    """The HTTP client can write all properties."""
+
+    await client_test_write_all_properties(http_servient, HTTPClient)
+
+
+@pytest.mark.asyncio
+async def test_write_multiple_properties(http_servient):
+    """The HTTP client can write selected properties."""
+
+    await client_test_write_multiple_properties(http_servient, HTTPClient)
 
 
 @pytest.mark.asyncio

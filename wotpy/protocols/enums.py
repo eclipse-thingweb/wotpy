@@ -54,3 +54,7 @@ class InteractionVerbs(EnumListMixin):
     INVOKE_ACTION = "invokeaction"
     SUBSCRIBE_EVENT = "subscribeevent"
     UNSUBSCRIBE_EVENT = "unsubscribeevent"
+    READ_ALL_PROPERTIES = "readallproperties"
+    WRITE_ALL_PROPERTIES = "writeallproperties"
+    READ_MULTIPLE_PROPERTIES = "readmultipleproperties"
+    WRITE_MULTIPLE_PROPERTIES = "writemultipleproperties"
