@@ -42,7 +42,7 @@ if [[ "develop" != $(git branch --show-current) ]]; then
     exit 1
 fi
 
-bump2version "$1"
+bump-my-version bump "$1"
 
 git checkout master &&
     git merge develop &&
