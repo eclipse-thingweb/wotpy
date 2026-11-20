@@ -228,6 +228,11 @@ class ZenohServer(BaseProtocolServer):
 
         return [form]
 
+    def build_top_level_forms(self, hostname, thing):
+        """Builds and returns a list with all top-level Forms."""
+
+        return []
+
     def build_forms(self, hostname, interaction):
         """Builds and returns a list with all Forms that are
         linked to this server for the given Interaction."""

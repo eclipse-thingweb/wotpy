@@ -63,13 +63,19 @@ class DataSchemaDict(WotBaseDict):
         """Used to ensure that the data is valid against
         one of the specified schemas in the array."""
 
-        return [DataSchemaDict.build(item) for item in self._init.get("oneOf", [])]
+        one_of = self._init.get("oneOf", None)
+        if not one_of:
+            return None
+
+        return [DataSchemaDict.build(item) for item in one_of]
 
     @classmethod
     def build(cls, *args, **kwargs):
         """Builds an instance of the appropriate subclass for the given ValueType."""
 
         init_dict = merge_args_kwargs_dict(args, kwargs)
+        if not init_dict:
+            raise ValueError("Missing data schema definition")
 
         klass_map = {
             DataType.NUMBER: NumberSchemaDict,
@@ -82,7 +88,20 @@ class DataSchemaDict(WotBaseDict):
         }
 
         klass_type = init_dict.get("type")
-        klass = klass_map.get(klass_type)
+
+        if klass_type is None:
+            if "properties" in init_dict:
+                klass = ObjectSchemaDict
+            elif "items" in init_dict:
+                klass = ArraySchemaDict
+            elif any(k in init_dict for k in ("minimum", "maximum", "multipleOf", "exclusiveMinimum", "exclusiveMaximum")):
+                klass = NumberSchemaDict
+            elif "enum" in init_dict:
+                klass = DataSchemaDict
+            else:
+                klass = DataSchemaDict
+        else:
+            klass = klass_map.get(klass_type)
 
         if not klass:
             raise ValueError("Unknown type: {}".format(klass_type))
@@ -199,7 +218,14 @@ class ArraySchemaDict(DataSchemaDict):
     def items(self):
         """Used to define the characteristics of an array."""
 
-        return DataSchemaDict.build(self._init["items"]) if "items" in self._init else None
+        if "items" not in self._init:
+            return None
+
+        items = self._init["items"]
+        if isinstance(items, list):
+            return [DataSchemaDict.build(item) for item in items]
+
+        return DataSchemaDict.build(items)
 
 
 class IntegerSchema(NumberSchemaDict):

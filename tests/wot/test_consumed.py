@@ -3,6 +3,7 @@
 
 # Copyright (c) 2018 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -147,6 +148,25 @@ async def test_read_property(consumed_exposed_pair):
 
 
 @pytest.mark.asyncio
+async def test_read_property_collections(consumed_exposed_pair):
+    """A ConsumedThing can read all or selected properties."""
+
+    consumed_thing = consumed_exposed_pair.pop("consumed_thing")
+    exposed_thing = consumed_exposed_pair.pop("exposed_thing")
+
+    async def test_coroutine():
+        names = list(consumed_thing.td.properties)
+        assert await consumed_thing.read_all_properties() == (
+            await exposed_thing.read_all_properties()
+        )
+        assert await consumed_thing.read_multiple_properties(names) == {
+            name: await exposed_thing.read_property(name) for name in names
+        }
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
 async def test_write_property(consumed_exposed_pair):
     """A ConsumedThing is able to write properties."""
 
@@ -168,6 +188,37 @@ async def test_write_property(consumed_exposed_pair):
         value = await exposed_thing.read_property(prop_name)
 
         assert value == val_02
+
+    await run_test_coroutine(test_coroutine)
+
+
+@pytest.mark.asyncio
+async def test_write_property_collections(consumed_exposed_pair):
+    """A ConsumedThing can write all or selected properties."""
+
+    consumed_thing = consumed_exposed_pair.pop("consumed_thing")
+    exposed_thing = consumed_exposed_pair.pop("exposed_thing")
+
+    async def test_coroutine():
+        names = [
+            name for name, prop in consumed_thing.td.properties.items()
+            if not prop.read_only
+        ]
+        initial_values = await exposed_thing.read_all_properties()
+        values = {name: Faker().sentence() for name in names}
+        await consumed_thing.write_multiple_properties(values)
+        assert await exposed_thing.read_all_properties() == {
+            **initial_values,
+            **values,
+        }
+
+        initial_values = await exposed_thing.read_all_properties()
+        values = {name: Faker().sentence() for name in names}
+        await consumed_thing.write_all_properties(values)
+        assert await exposed_thing.read_all_properties() == {
+            **initial_values,
+            **values,
+        }
 
     await run_test_coroutine(test_coroutine)
 

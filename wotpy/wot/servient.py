@@ -352,6 +352,7 @@ class Servient:
         contained in this Servient."""
 
         for exposed_thing in self._exposed_thing_set.exposed_things:
+            exposed_thing.thing.clean_forms()
             for interaction in exposed_thing.thing.interactions:
                 interaction.clean_forms()
 
@@ -391,6 +392,8 @@ class Servient:
 
             for form in forms:
                 interaction.add_form(form)
+        top_level_forms = server.build_top_level_forms(self._hostname, exposed_thing.thing)
+        exposed_thing.thing.add_forms(top_level_forms)
 
     def _regenerate_server_forms(self, server):
         """Cleans and regenerates Forms for the given server in all ExposedThings."""

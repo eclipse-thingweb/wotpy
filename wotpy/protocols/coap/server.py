@@ -3,6 +3,7 @@
 
 # Copyright (c) 2018 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -41,6 +42,7 @@ from wotpy.protocols.coap.enums import CoAPSchemes
 from wotpy.protocols.coap.resources.action import ActionResource
 from wotpy.protocols.coap.resources.event import EventResource
 from wotpy.protocols.coap.resources.property import PropertyResource
+from wotpy.protocols.coap.resources.properties import PropertiesResource
 from wotpy.protocols.enums import Protocols, InteractionVerbs
 from wotpy.protocols.server import BaseProtocolServer
 from wotpy.utils.utils import get_main_ipv4_address
@@ -92,21 +94,23 @@ class CoAPServer(BaseProtocolServer):
             self.scheme, hostname.rstrip("/").lstrip("/"), self.port,
             proprty.thing.url_name, proprty.url_name)
 
-        form_read = Form(
-            interaction=proprty,
-            protocol=self.protocol,
-            href=href_prop,
-            content_type=MediaTypes.JSON,
-            op=InteractionVerbs.READ_PROPERTY
-        )
-
-        form_write = Form(
-            interaction=proprty,
-            protocol=self.protocol,
-            href=href_prop,
-            content_type=MediaTypes.JSON,
-            op=InteractionVerbs.WRITE_PROPERTY
-        )
+        forms = []
+        if not proprty.data_schema.write_only:
+            forms.append(Form(
+                interaction=proprty,
+                protocol=self.protocol,
+                href=href_prop,
+                content_type=MediaTypes.JSON,
+                op=InteractionVerbs.READ_PROPERTY
+            ))
+        if not proprty.data_schema.read_only:
+            forms.append(Form(
+                interaction=proprty,
+                protocol=self.protocol,
+                href=href_prop,
+                content_type=MediaTypes.JSON,
+                op=InteractionVerbs.WRITE_PROPERTY
+            ))
 
         form_observe = Form(
             interaction=proprty,
@@ -116,7 +120,7 @@ class CoAPServer(BaseProtocolServer):
             op=InteractionVerbs.OBSERVE_PROPERTY
         )
 
-        return [form_read, form_write, form_observe]
+        return forms + [form_observe]
 
     def _build_forms_action(self, action, hostname):
         """Builds and returns the CoAP Form instances for the given Action interaction."""
@@ -175,6 +179,38 @@ class CoAPServer(BaseProtocolServer):
 
         return intrct_type_map[interaction.interaction_type](interaction, hostname)
 
+    def build_top_level_forms(self, hostname, thing):
+        """Builds and returns a list with all top-level Forms
+        that are linked to this server for all exposed Things."""
+
+        href_all_properties = "{}://{}:{}/properties?thing={}".format(
+            self.scheme, hostname.rstrip("/").lstrip("/"), self.port, thing.url_name)
+
+        readable = any(not prop.data_schema.write_only for prop in thing.properties.values())
+        writable = any(not prop.data_schema.read_only for prop in thing.properties.values())
+        operations = []
+        if readable:
+            operations.extend([
+                InteractionVerbs.READ_ALL_PROPERTIES,
+                InteractionVerbs.READ_MULTIPLE_PROPERTIES
+            ])
+        if writable:
+            operations.extend([
+                InteractionVerbs.WRITE_ALL_PROPERTIES,
+                InteractionVerbs.WRITE_MULTIPLE_PROPERTIES
+            ])
+        if not operations:
+            return []
+
+        form_all_properties = Form(
+            interaction=None,
+            protocol=self.protocol,
+            href=href_all_properties,
+            content_type=MediaTypes.JSON,
+            op=operations)
+
+        return [form_all_properties]
+
     def build_base_url(self, hostname, thing):
         """Returns the base URL for the given Thing in the context of this server."""
 
@@ -198,6 +234,10 @@ class CoAPServer(BaseProtocolServer):
         root.add_resource(
             ("property",),
             PropertyResource(self))
+
+        root.add_resource(
+            ("properties",),
+            PropertiesResource(self))
 
         root.add_resource(
             ("action",),
