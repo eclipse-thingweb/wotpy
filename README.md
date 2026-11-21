@@ -170,3 +170,7 @@ An MQTT broker is needed as a dependency for the MQTT binding tests and a Zenoh 
 You should use the `version.sh` file and not change any versions anywhere manually.
 Running `version.sh minor` will bump the minor version, push the tags and update the master branch and also trigger the release.
 Make sure to clear the `.venv` environment and reinstall the packages before publishing.
+An unclean tree will fail the script, i.e. the develop branch must be in a clean state first.
+
+Note: This can be only used by those who have force push rights to the develop branch. See [here](https://github.com/eclipse-thingweb/wotpy/issues/39).
+
