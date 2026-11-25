@@ -59,18 +59,18 @@ tasks:
       - test-zenoh
 
   venv:
-    desc: Create the virtual environment for development using pip
+    desc: Create the development virtual environment using pip
     cmds:
       - python3 -m venv {{.VENV_PATH}}
-      - "{{.VENV_PATH}}/bin/pip install -U -e '{{.ROOT_DIR}}[tests]'"
+      - "{{.VENV_PATH}}/bin/pip install -U -e '{{.ROOT_DIR}}[dev,docs,tests]'"
     status:
       - test -d {{.VENV_PATH}}
 
   uv-venv:
-    desc: Create the virtual environment for development using uv
+    desc: Create the development virtual environment using uv
     cmds:
       - uv venv {{.VENV_PATH}}
-      - uv sync --extra tests
+      - uv sync --extra dev --extra docs --extra tests
     status:
       - test -d {{.VENV_PATH}}
 
@@ -93,7 +93,7 @@ tasks:
   docker-tests-all:
     desc: Run the tests in a Docker container for all Python versions
     cmds:
-      - for: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      - for: ["3.11", "3.12", "3.13", "3.14", "3.15"]
         task: docker-tests
         vars:
           PYTHON_TAG: "{{.ITEM}}"
