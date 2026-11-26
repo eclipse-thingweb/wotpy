@@ -36,12 +36,12 @@ FEATURE_MQTT = "MQTT"
 
 FEATURE_REQUISITES = {
     FEATURE_COAP: {
-        "max_version_exclusive": (3, 15),
+        "max_version_exclusive": (3, 16),
         "min_version_inclusive": (3, 9),
         "platforms": ["Linux"],
     },
     FEATURE_MQTT: {
-        "max_version_exclusive": (3, 15),
+        "max_version_exclusive": (3, 16),
         "min_version_inclusive": (3, 9),
         "platforms": ["Linux", "Darwin"],
     },

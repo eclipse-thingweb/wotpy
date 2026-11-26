@@ -20,9 +20,11 @@
 
 wotpy is an implementation of a [W3C WoT Runtime](https://github.com/w3c/wot-architecture/blob/master/proposals/terminology.md#wot-runtime) and the [W3C WoT Scripting API](https://github.com/w3c/wot-architecture/blob/master/proposals/terminology.md#scripting-api) in Python.
 
-You can find the documentation at <https://eclipse-thingweb.github.io/wotpy/>.
+## Documentation
 
-### About the current version
+See the [wotpy documentation](https://eclipse-thingweb.github.io/wotpy/).
+
+## About the current version
 
 ⚠️ Please note that there's still a **significant pending issue**. Although the project is currently in a reasonably stable state, it does not implement the current version of the W3C WoT specifications. Specifically, the version at the time of writing is based on the following **outdated** references:
 
@@ -53,7 +55,7 @@ These bindings are built on top of the following dependencies, which are instrum
 | HTTP binding        | [tornadoweb/tornado](https://github.com/tornadoweb/tornado)                  | ✔️     | ✔️     |
 | WebSockets binding  | [tornadoweb/tornado](https://github.com/tornadoweb/tornado)                  | ✔️     | ✔️     |
 | CoAP binding        | [chrysn/aiocoap](https://github.com/chrysn/aiocoap)                          | ✔️     | ✔️     |
-| MQTT binding        | [sbtinstruments/aiomqtt](https://github.com/sbtinstruments/aiomqtt)          | ✔️     | ✔️     |
+| MQTT binding        | [Yakifo/amqtt](https://github.com/Yakifo/amqtt)                              | ✔️     | ✔️     |
 | Zenoh binding       | [eclipse-zenoh/zenoh-python](https://github.com/eclipse-zenoh/zenoh-python)  | ✔️     | ✔️     |
 | Modbus binding      | [pymodbus-dev/pymodbus](https://github.com/pymodbus-dev/pymodbus)            | ✔️     | -      |
 
@@ -67,7 +69,7 @@ pip install wotpy
 
 The development workflow of wotpy is based on [Taskfile](https://taskfile.dev/installation/) v3.28 or later, so that's the first thing you need to install. If you are on Windows, see [Running tests on Windows](#running-tests-on-windows).
 
-Create a `.venv` virtual environment and install the project in development mode with its test dependencies.
+Create a `.venv` virtual environment and install the project in development mode with its development, documentation, and test dependencies.
 
 Using `pip`:
 
@@ -87,31 +89,19 @@ Using `pip`:
 
 ```sh
 python3 -m venv .venv
-.venv/bin/pip install -U -e ".[tests]"
+.venv/bin/pip install -U -e ".[dev,docs,tests]"
 ```
 
 Using `uv`:
 
 ```sh
 uv venv .venv
-uv sync --extra tests
+uv sync --extra dev --extra docs --extra tests
 ```
 
-### Documentation
+### Building the documentation
 
-The docs are built with [Sphinx](https://www.sphinx-doc.org/). Install the docs dependencies first:
-
-```sh
-pip install -e ".[docs]"
-```
-
-Or with `uv`:
-
-```sh
-uv sync --extra docs
-```
-
-Then build from the `docs/` directory:
+The docs are built with [Sphinx](https://www.sphinx-doc.org/), which is installed with the development dependencies above. Build them from the `docs/` directory:
 
 ```sh
 cd docs
@@ -125,45 +115,10 @@ The output is written to `docs/_build/html/`. Open `docs/_build/html/index.html`
 Some wotpy features (e.g., the CoAP binding) are not available outside of Linux. If you have Docker installed and want to run the full test suite in a Linux environment, you can use the Docker-based test task:
 
 ```sh
-$ PYTHON_TAG="3.10" task docker-tests
-task: [test-broker] docker run -d -p 1883:1883 --name wotpy_test_broker eclipse-mosquitto:1.6
-
-68bfef102faf3529427e5c7122f41d43490885c04f8a2d673a2c57b3afd68f72
-task: [docker-tests] echo "⚙️ Running tests for Python 3.10..."
-⚙️ Running tests for Python 3.10...
-task: [docker-tests] PWD/wotpy/pytest-docker.sh
-Running python tests for version 3.10 with arguments "-v"
-Creating temporary container volume
-wotpy_tests_28b82c629b354b83a7fa22a9ed3d6dba
-Running test container. Environment setup will take a while.
-+ docker run --rm -it -v wotpy_tests_28b82c629b354b83a7fa22a9ed3d6dba:/app -e WOTPY_TESTS_MQTT_BROKER_URL=mqtt://172.16.102.196:1883 python:3.10 /bin/bash -c 'cd /app && pip install --quiet -U .[tests] && pytest -v'
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
-
-[notice] A new release of pip is available: 23.0.1 -> 23.3.1
-[notice] To update, run: pip install --upgrade pip
-================================================================================================================================================== test session starts ===================================================================================================================================================
-platform linux -- Python 3.10, pytest-7.4.2, pluggy-1.3.0 -- /usr/local/bin/python
-cachedir: .pytest_cache
-rootdir: /app
-configfile: pytest.ini
-plugins: asyncio-0.21.1, rerunfailures-10.3, Faker-13.16.0, cov-2.5.1
-asyncio: mode=strict
-collected 154 items
-
-tests/codecs/test_json.py::test_json_codec PASSED [  0%]
-tests/protocols/test_protocols.py::test_all_protocols_combined PASSED [  1%]
-
-[...]
-
-================================================================================================================================== 148 passed, 6 skipped, 1 warning in 60.70s (0:01:00) ==================================================================================================================================
-+ set +x
-wotpy_tests_28b82c629b354b83a7fa22a9ed3d6dba
-task: [docker-tests] echo "✅ Tests for Python 3.10 completed successfully"
-✅ Tests for Python 3.10 completed successfully
+PYTHON_TAG=<version> task docker-tests
 ```
 
-An MQTT broker is needed as a dependency for the MQTT binding tests and a Zenoh router is needed fo the Zenoh binding tests. The task will automatically create new docker images and set the appropriate env variables `WOTPY_TESTS_MQTT_BROKER_URL` and `WOTPY_TESTS_ZENOH_ROUTER_URL`.
-
+Replace `<version>` with the Python version you want to test. The task starts the MQTT broker and Zenoh router required by the tests and sets the corresponding environment variables.
 
 ## Publishing New Versions
 
