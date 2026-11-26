@@ -3,6 +3,7 @@
 
 # Copyright (c) 2018 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -162,6 +163,104 @@ async def client_test_read_property(servient, protocol_client_cls, timeout=None)
         curr_prop_value = await protocol_client.read_property(td, prop_name, timeout=timeout)
 
         assert curr_prop_value == prop_value
+
+    await run_test_coroutine(test_coroutine)
+
+
+async def client_test_read_all_properties(servient, protocol_client_cls, timeout=None):
+    """Helper function to test all Property reads on binding clients."""
+
+    exposed_thing = next(servient.exposed_things)
+    servient.refresh_forms()
+    td = ThingDescription.from_thing(exposed_thing.thing)
+
+    async def test_coroutine():
+        protocol_client = protocol_client_cls()
+        result = await protocol_client.read_all_properties(td, timeout=timeout)
+        assert result == await exposed_thing.read_all_properties()
+
+    await run_test_coroutine(test_coroutine)
+
+
+async def client_test_read_multiple_properties(servient, protocol_client_cls, timeout=None):
+    """Helper function to test multiple Property reads on binding clients."""
+
+    exposed_thing = next(servient.exposed_things)
+    property_names = [uuid.uuid4().hex for _ in range(2)]
+    for name in property_names:
+        exposed_thing.add_property(
+            name,
+            PropertyFragmentDict({"type": "string", "observable": True}),
+            value=Faker().sentence()
+        )
+    servient.refresh_forms()
+    td = ThingDescription.from_thing(exposed_thing.thing)
+
+    async def test_coroutine():
+        protocol_client = protocol_client_cls()
+        all_values = await exposed_thing.read_all_properties()
+        selected_values = {name: all_values[name] for name in property_names}
+
+        result = await protocol_client.read_multiple_properties(
+            td, property_names, timeout=timeout
+        )
+        assert result == selected_values
+
+    await run_test_coroutine(test_coroutine)
+
+
+async def client_test_write_all_properties(servient, protocol_client_cls, timeout=None):
+    """Helper function to test all Property writes on binding clients."""
+
+    exposed_thing = next(servient.exposed_things)
+    servient.refresh_forms()
+    td = ThingDescription.from_thing(exposed_thing.thing)
+
+    async def test_coroutine():
+        protocol_client = protocol_client_cls()
+        initial_values = await exposed_thing.read_all_properties()
+        writable_names = [
+            name for name, prop in td.properties.items() if not prop.read_only
+        ]
+        values = {
+            name: "{} updated".format(initial_values[name])
+            for name in writable_names
+        }
+        await protocol_client.write_all_properties(td, values, timeout=timeout)
+        assert await exposed_thing.read_all_properties() == {
+            **initial_values,
+            **values,
+        }
+
+    await run_test_coroutine(test_coroutine)
+
+
+async def client_test_write_multiple_properties(servient, protocol_client_cls, timeout=None):
+    """Helper function to test multiple Property writes on binding clients."""
+
+    exposed_thing = next(servient.exposed_things)
+    property_names = [uuid.uuid4().hex for _ in range(2)]
+    for name in property_names:
+        exposed_thing.add_property(
+            name,
+            PropertyFragmentDict({"type": "string", "observable": True}),
+            value=Faker().sentence()
+        )
+    servient.refresh_forms()
+    td = ThingDescription.from_thing(exposed_thing.thing)
+    initial_values = await exposed_thing.read_all_properties()
+
+    async def test_coroutine():
+        protocol_client = protocol_client_cls()
+        values = {
+            name: "{} updated".format(initial_values[name])
+            for name in property_names
+        }
+        await protocol_client.write_multiple_properties(td, values, timeout=timeout)
+        assert await exposed_thing.read_all_properties() == {
+            **initial_values,
+            **values,
+        }
 
     await run_test_coroutine(test_coroutine)
 

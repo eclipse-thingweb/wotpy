@@ -3,6 +3,7 @@
 
 # Copyright (c) 2017 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -27,9 +28,12 @@
 Class that represents a Thing consumed by a servient.
 """
 
+import asyncio
+
 from reactivex.scheduler.eventloop import IOLoopScheduler
 from tornado import ioloop
 
+from wotpy.protocols.enums import InteractionVerbs
 from wotpy.wot.consumed.interaction_map import (
     ConsumedThingActionDict,
     ConsumedThingEventDict,
@@ -121,6 +125,142 @@ class ConsumedThing:
         )
 
         return value
+
+    def _find_form(self, operation):
+        """Returns the first Thing form supporting the given operation."""
+
+        return next(
+            (
+                form for form in (self.td.forms or [])
+                if operation in (
+                    form.op if isinstance(form.op, (list, tuple)) else [form.op]
+                )
+            ),
+            None
+        )
+
+    async def read_all_properties(self, options=None):
+        """Reads all readable Properties and returns their values by name."""
+
+        names = [
+            name for name, prop in self.td.properties.items() if not prop.write_only
+        ]
+        if not names:
+            return {}
+        client = self.servient.select_client(self.td, names[0])
+        form = self._find_form(InteractionVerbs.READ_ALL_PROPERTIES)
+        method = getattr(client, "read_all_properties", None)
+        if form and method:
+            return await method(
+                self.td, timeout=(options or {}).get("timeout"),
+                options=options, form=form
+            )
+
+        form = self._find_form(InteractionVerbs.READ_MULTIPLE_PROPERTIES)
+        method = getattr(client, "read_multiple_properties", None)
+        if form and method:
+            return await method(
+                self.td, names, timeout=(options or {}).get("timeout"),
+                options=options, form=form
+            )
+
+        return await self._read_properties_individually(names, options)
+
+    async def read_multiple_properties(self, property_names, options=None):
+        """Reads the named Properties and returns their values by name."""
+
+        names = list(property_names)
+        if any(name not in self.td.properties for name in names):
+            raise KeyError("Unknown property")
+        if any(self.td.properties[name].write_only for name in names):
+            raise PermissionError("Cannot read a write-only property")
+        if not names:
+            return {}
+
+        client = self.servient.select_client(self.td, names[0])
+        form = self._find_form(InteractionVerbs.READ_MULTIPLE_PROPERTIES)
+        method = getattr(client, "read_multiple_properties", None)
+        if form and method:
+            return await method(
+                self.td, names, timeout=(options or {}).get("timeout"),
+                options=options, form=form
+            )
+
+        return await self._read_properties_individually(names, options)
+
+    async def _read_properties_individually(self, names, options):
+        """Reads Properties individually when the client has no collection form."""
+
+        values = await asyncio.gather(
+            *(self.read_property(name, timeout=(options or {}).get("timeout"),
+                                 client_kwargs=options) for name in names)
+        )
+        return dict(zip(names, values))
+
+    async def write_multiple_properties(self, values, options=None):
+        """Writes the supplied Property values."""
+
+        if not isinstance(values, dict):
+            raise TypeError("Property values must be a dictionary")
+        if any(name not in self.td.properties for name in values):
+            raise KeyError("Unknown property")
+        if any(self.td.properties[name].read_only for name in values):
+            raise PermissionError("Cannot write a read-only property")
+
+        names = list(values)
+        if not values:
+            return
+        client = self.servient.select_client(self.td, names[0])
+        form = self._find_form(InteractionVerbs.WRITE_MULTIPLE_PROPERTIES)
+        method = getattr(client, "write_multiple_properties", None)
+        if form and method:
+            return await method(
+                self.td, values, timeout=(options or {}).get("timeout"),
+                options=options, form=form
+            )
+        await asyncio.gather(
+            *(self.write_property(name, value, timeout=(options or {}).get("timeout"),
+                                 client_kwargs=options)
+              for name, value in values.items())
+        )
+
+    async def write_all_properties(self, values, options=None):
+        """Writes values for all writable Properties."""
+
+        if not isinstance(values, dict):
+            raise TypeError("Property values must be a dictionary")
+        expected = {
+            name for name, prop in self.td.properties.items() if not prop.read_only
+        }
+        if set(values) != expected:
+            raise ValueError("All writable property values are required")
+        if not values:
+            return
+
+        names = list(values)
+        client = self.servient.select_client(self.td, names[0])
+        form = self._find_form(InteractionVerbs.WRITE_ALL_PROPERTIES)
+        method = getattr(client, "write_all_properties", None)
+        if form and method:
+            return await method(
+                self.td, values, timeout=(options or {}).get("timeout"),
+                options=options, form=form
+            )
+
+        form = self._find_form(InteractionVerbs.WRITE_MULTIPLE_PROPERTIES)
+        method = getattr(client, "write_multiple_properties", None)
+        if form and method:
+            return await method(
+                self.td, values, timeout=(options or {}).get("timeout"),
+                options=options, form=form
+            )
+
+        await asyncio.gather(
+            *(self.write_property(
+                name, value, timeout=(options or {}).get("timeout"),
+                client_kwargs=options
+            ) for name, value in values.items())
+        )
 
     def on_event(self, name, client_kwargs=None):
         """Returns an Observable for the Event specified in the name argument,

@@ -3,6 +3,7 @@
 
 # Copyright (c) 2018 CTIC Centro Tecnologico
 # Copyright (c) 2025 National Technical University of Athens
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -31,6 +32,7 @@ import asyncio
 import json
 import logging
 import time
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import tornado.httpclient
 import reactivex
@@ -61,8 +63,8 @@ class HTTPClient(BaseProtocolClient):
         super().__init__()
 
     @classmethod
-    def pick_http_href(cls, td, forms, op=None):
-        """Picks the most appropriate HTTP form href from the given list of forms."""
+    def _pick_http_form(cls, td, forms, op=None):
+        """Picks the most appropriate HTTP form from the given list of forms."""
 
         def is_op_form(form):
             try:
@@ -70,17 +72,24 @@ class HTTPClient(BaseProtocolClient):
             except TypeError:
                 return False
 
-        def find_href(scheme):
+        def find_form(scheme):
             try:
                 return next(
-                    form.href for form in forms
+                    form for form in forms
                     if is_scheme_form(form, td.base, scheme) and is_op_form(form))
             except StopIteration:
                 return None
 
-        form_https = find_href(HTTPSchemes.HTTPS)
+        form_https = find_form(HTTPSchemes.HTTPS)
 
-        return form_https if form_https is not None else find_href(HTTPSchemes.HTTP)
+        return form_https if form_https is not None else find_form(HTTPSchemes.HTTP)
+
+    @classmethod
+    def pick_http_href(cls, td, forms, op=None):
+        """Picks the most appropriate HTTP form href from the given list of forms."""
+
+        form = cls._pick_http_form(td, forms, op=op)
+        return form.href if form is not None else None
 
     @property
     def protocol(self):
@@ -229,6 +238,72 @@ class HTTPClient(BaseProtocolClient):
         result = json.loads(response.body)
 
         return result
+
+    async def read_multiple_properties(self, td, property_names, timeout=None, options=None, form=None):
+        """Reads a collection of properties using a collection form."""
+
+        href = form.href if form is not None else self.pick_http_href(
+            td, td.forms, op=InteractionVerbs.READ_MULTIPLE_PROPERTIES
+        )
+        if href is None:
+            raise FormNotFoundException()
+        options = options or {}
+        parts = urlsplit(href)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query.update(options.get("uri_variables", options.get("uriVariables", {})))
+        query["properties"] = ",".join(property_names)
+        href = urlunsplit((parts.scheme, parts.netloc, parts.path,
+                           urlencode(query), parts.fragment))
+        request = tornado.httpclient.HTTPRequest(
+            href, method="GET", connect_timeout=timeout or self._connect_timeout,
+            request_timeout=timeout or self._request_timeout, validate_cert=False)
+        response = await tornado.httpclient.AsyncHTTPClient().fetch(
+            await self.sign_request(request)
+        )
+        value = json.loads(response.body)
+        if not isinstance(value, dict):
+            raise ValueError("Collection response must be a JSON object")
+        return value
+
+    async def read_all_properties(self, td, timeout=None, options=None, form=None):
+        """Reads all readable properties using an all-properties form."""
+
+        form = form or self._pick_http_form(
+            td, td.forms, op=InteractionVerbs.READ_ALL_PROPERTIES
+        )
+        if form is None:
+            raise FormNotFoundException()
+        return await self.read_multiple_properties(
+            td, [name for name in td.properties
+                 if not td.properties[name].write_only],
+            timeout=timeout, options=options, form=form
+        )
+
+    async def write_multiple_properties(self, td, values, timeout=None, options=None, form=None):
+        """Writes a collection of properties using a collection form."""
+
+        href = form.href if form is not None else self.pick_http_href(
+            td, td.forms, op=InteractionVerbs.WRITE_MULTIPLE_PROPERTIES
+        )
+        if href is None:
+            raise FormNotFoundException()
+        request = tornado.httpclient.HTTPRequest(
+            href, method="PUT", body=json.dumps(values), headers=self.JSON_HEADERS,
+            connect_timeout=timeout or self._connect_timeout,
+            request_timeout=timeout or self._request_timeout, validate_cert=False)
+        await tornado.httpclient.AsyncHTTPClient().fetch(await self.sign_request(request))
+
+    async def write_all_properties(self, td, values, timeout=None, options=None, form=None):
+        """Writes all writable properties using an all-properties form."""
+
+        form = form or self._pick_http_form(
+            td, td.forms, op=InteractionVerbs.WRITE_ALL_PROPERTIES
+        )
+        if form is None:
+            raise FormNotFoundException()
+        return await self.write_multiple_properties(
+            td, values, timeout=timeout, options=options, form=form
+        )
 
     def on_event(self, td, name):
         """Subscribes to an event on a remote Thing.

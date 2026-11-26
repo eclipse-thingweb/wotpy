@@ -29,9 +29,10 @@ Wrapper class for dictionaries to represent Things.
 
 from wotpy.wot.dictionaries.base import WotBaseDict
 from wotpy.wot.dictionaries.interaction import PropertyFragmentDict, ActionFragmentDict, EventFragmentDict
-from wotpy.wot.dictionaries.link import LinkDict
+from wotpy.wot.dictionaries.link import LinkDict, FormDict
 from wotpy.wot.dictionaries.security import SecuritySchemeDict
 from wotpy.utils.utils import to_camel
+from wotpy.wot.dictionaries.schema import DataSchemaDict
 from wotpy.wot.dictionaries.version import VersioningDict
 from wotpy.wot.enums import SecuritySchemeType
 
@@ -203,6 +204,13 @@ class ThingFragment(WotBaseDict):
         """The links optional attribute represents an array of Link objects."""
 
         return [LinkDict(item) for item in self._init.get("links", [])]
+
+    @property
+    def forms(self):
+        """The forms optional attribute represents an array of Form objects."""
+
+        forms = self._init.get("forms")
+        return [FormDict(item) for item in forms] if forms else None
 
     @property
     def version(self):
